@@ -1,104 +1,66 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Filter, Plus } from 'lucide-react';
-
-interface Quote {
-  id: string;
-  customer: string;
-  reference: string;
-  pickupDate: string;
-  origin: string;
-  originZip: string;
-  destination: string;
-  destinationZip: string;
-  load: string;
-  weight: string;
-  carrier: string;
-  createdBy: string;
-  createdDate: string;
-}
+import { Quote } from '@/lib/types';
+import { getAllQuotes, initializeSampleData } from '@/lib/data/storage';
 
 export default function QuotesPage() {
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({
     start: '12/19/2025',
     end: '01/07/2026'
   });
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  useEffect(() => {
+    // Initialize sample data on first load
+    initializeSampleData();
 
-  // Mock data - 根据截图的数据
-  const [quotes] = useState<Quote[]>([
-    {
-      id: '229936-P1',
-      customer: 'ANKUN USA',
-      reference: '60112795247',
-      pickupDate: '1/2/2026',
-      origin: 'Fontana, CA',
-      originZip: '92337',
-      destination: 'Madera, CA',
-      destinationZip: '93636',
-      load: 'CLASS 65',
-      weight: '59.28lb',
-      carrier: 'DDPP',
-      createdBy: 'Allen Long',
-      createdDate: 'Created an hour ago on 1/2/2026'
-    },
-    {
-      id: '229936-P1',
-      customer: 'ANKUN USA',
-      reference: '60112768669',
-      pickupDate: '12/30/2025',
-      origin: 'Rincon, CA',
-      originZip: '91426',
-      destination: 'Roswell, GA',
-      destinationZip: '30078',
-      load: 'CLASS 125',
-      weight: '76.84lb',
-      carrier: 'AVRT',
-      createdBy: 'Laura Posada',
-      createdDate: 'Created 3 days ago on 12/30/2025'
-    },
-    {
-      id: '229936-P1',
-      customer: 'ANKUN USA',
-      reference: '60112768666',
-      pickupDate: '12/30/2025',
-      origin: 'Perris, CA',
-      originZip: '92571',
-      destination: 'San Francisco, CA',
-      destinationZip: '94112',
-      load: 'CLASS 100',
-      weight: '60.00lb',
-      carrier: 'RDFS',
-      createdBy: 'Laura Posada',
-      createdDate: 'Created 3 days ago on 12/30/2025'
-    },
-    {
-      id: '229936-P1',
-      customer: 'ANKUN USA',
-      reference: '60112768661',
-      pickupDate: '12/30/2025',
-      origin: 'Perris, CA',
-      originZip: '92571',
-      destination: 'San Jose, CA',
-      destinationZip: '95111',
-      load: 'CLASS 125',
-      weight: '110.00lb',
-      carrier: 'ABFS',
-      createdBy: 'Laura Posada',
-      createdDate: 'Created 3 days ago on 12/30/2025'
-    },
-  ]);
+    // Load quotes from localStorage
+    const loadedQuotes = getAllQuotes();
+    setQuotes(loadedQuotes);
+  }, []);
 
-  const filteredQuotes = quotes.filter(quote =>
-    quote.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quote.reference.includes(searchTerm) ||
-    quote.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quote.destination.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        return `Created ${diffMins} minutes ago on ${formatDate(dateString)}`;
+      }
+      return `Created ${diffHours} hour${diffHours > 1 ? 's' : ''} ago on ${formatDate(dateString)}`;
+    }
+    return `Created ${diffDays} day${diffDays > 1 ? 's' : ''} ago on ${formatDate(dateString)}`;
+  };
+
+  const filteredQuotes = quotes.filter(quote => {
+    if (!searchTerm) return true;
+
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      quote.customerName.toLowerCase().includes(searchLower) ||
+      (quote.reference && quote.reference.toLowerCase().includes(searchLower)) ||
+      quote.pickup.address.city.toLowerCase().includes(searchLower) ||
+      quote.delivery.address.city.toLowerCase().includes(searchLower) ||
+      (quote.selectedCarrier && quote.selectedCarrier.carrierCode.toLowerCase().includes(searchLower))
+    );
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -111,7 +73,7 @@ export default function QuotesPage() {
                 Saved Quotes
               </h1>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                已保存的报价列表
+                已保存的报价列表 ({quotes.length} quotes)
               </p>
             </div>
             <Link
@@ -168,12 +130,11 @@ export default function QuotesPage() {
                   <span>More Filters</span>
                 </button>
 
-                <button className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors">
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+                >
                   Clear All
-                </button>
-
-                <button className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors">
-                  Search
                 </button>
 
                 <button className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors">
@@ -217,57 +178,68 @@ export default function QuotesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                {filteredQuotes.map((quote, index) => (
-                  <tr
-                    key={index}
-                    className="hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                        {quote.customer}
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {quote.createdDate}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
-                      {quote.reference}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
-                      {quote.pickupDate}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-zinc-900 dark:text-zinc-50">
-                        {quote.origin}
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {quote.originZip}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-zinc-900 dark:text-zinc-50">
-                        {quote.destination}
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {quote.destinationZip}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-zinc-900 dark:text-zinc-50">
-                        {quote.load}
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {quote.weight}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
-                      {quote.carrier}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
-                      {quote.createdBy}
-                    </td>
-                  </tr>
-                ))}
+                {filteredQuotes.map((quote, index) => {
+                  // Get highest freight class
+                  const freightClasses = quote.items
+                    .map(item => item.freightClass)
+                    .filter(fc => fc && fc !== '');
+                  const highestClass = freightClasses.length > 0
+                    ? freightClasses.sort((a, b) => parseFloat(b!) - parseFloat(a!))[0]
+                    : 'N/A';
+
+                  return (
+                    <tr
+                      key={index}
+                      className="hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
+                      onClick={() => window.location.href = `/quotes/${quote.id}`}
+                    >
+                      <td className="px-4 py-4">
+                        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                          {quote.customerName}
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {getRelativeTime(quote.createdAt)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
+                        {quote.reference || 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
+                        {formatDate(quote.pickup.date)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-zinc-900 dark:text-zinc-50">
+                          {quote.pickup.address.city}, {quote.pickup.address.state}
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {quote.pickup.address.zipCode}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-zinc-900 dark:text-zinc-50">
+                          {quote.delivery.address.city}, {quote.delivery.address.state}
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {quote.delivery.address.zipCode}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-zinc-900 dark:text-zinc-50">
+                          CLASS {highestClass}
+                        </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {quote.totals.totalWeight.toFixed(2)}lb
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
+                        {quote.selectedCarrier?.carrierCode || 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-900 dark:text-zinc-50">
+                        {quote.createdBy}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -276,7 +248,9 @@ export default function QuotesPage() {
           {filteredQuotes.length === 0 && (
             <div className="text-center py-12">
               <p className="text-zinc-500 dark:text-zinc-400">
-                No quotes found matching your search criteria.
+                {quotes.length === 0
+                  ? 'No quotes yet. Create your first quote!'
+                  : 'No quotes found matching your search criteria.'}
               </p>
             </div>
           )}

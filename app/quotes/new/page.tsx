@@ -1,5 +1,5 @@
-import FreightQuoteForm from '@/components/FreightQuoteForm';
+import FreightQuoteFormEnhanced from '@/components/FreightQuoteFormEnhanced';
 
 export default function NewQuotePage() {
-  return <FreightQuoteForm />;
+  return <FreightQuoteFormEnhanced />;
 }
